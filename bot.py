@@ -24,15 +24,25 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 
+def _public_base() -> str | None:
+    u = (os.environ.get("PUBLIC_URL") or "").strip().rstrip("/")
+    return u or None
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    public = (os.environ.get("PUBLIC_URL") or "").strip().rstrip("/")
+    public = _public_base()
     if not public:
         await update.effective_message.reply_text(
             "Задайте переменную PUBLIC_URL на хостинге (https://…).",
         )
         return
 
+    args = context.args or []
+    mode = (args[0] or "").strip().lower() if args else ""
+
     edit_url = f"{public}/edit"
+    site_url = public
+
     keyboard = InlineKeyboardMarkup(
         [
             [
@@ -41,13 +51,31 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
                     web_app=WebAppInfo(url=edit_url),
                 )
             ],
-            [InlineKeyboardButton(text="Сайт", url=public)],
+            [InlineKeyboardButton(text="Открыть сайт", url=site_url)],
         ]
     )
-    await update.effective_message.reply_text(
-        "Настройте свою страницу Taplink:",
-        reply_markup=keyboard,
-    )
+
+    if mode == "return":
+        text = (
+            "С возвращением!\n\n"
+            "Нажмите «Открыть редактор», чтобы изменить страницу, ссылки и аватар. "
+            "После «Сохранить» в редакторе ваша публичная ссылка обновится для всех.\n\n"
+            "Сайт: " + site_url
+        )
+    else:
+        # register, пустой start и любые другие deep-link
+        text = (
+            "Добро пожаловать в Taplink — регистрация в пару шагов.\n\n"
+            "1) Нажмите «Открыть редактор» (Mini App в Telegram).\n"
+            "2) Придумайте адрес страницы (латиницей), имя, описание и ссылки.\n"
+            "3) Нажмите «Сохранить» — профиль уйдёт на сервер.\n"
+            "4) Делитесь ссылкой вида:\n"
+            f"   {site_url}/ваш-ник\n"
+            "Она откроется у друзей в обычном браузере, не только в Telegram.\n\n"
+            "Если уже создавали страницу — на сайте нажмите «Уже регистрировался»."
+        )
+
+    await update.effective_message.reply_text(text, reply_markup=keyboard)
 
 
 def run_bot() -> None:
@@ -61,7 +89,6 @@ def run_bot() -> None:
 
     worker = threading.current_thread() is not threading.main_thread()
 
-    # Uvicorn + uvloop: в фоновом потоке нет текущего loop — PTB падает на get_event_loop().
     if worker:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
@@ -69,7 +96,6 @@ def run_bot() -> None:
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", start))
     log.info("Бот polling запущен (bot.py)")
-    # add_signal_handler() в uvloop только из main thread — в воркере отключаем stop_signals.
     if worker:
         application.run_polling(
             allowed_updates=Update.ALL_TYPES,
