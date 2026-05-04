@@ -59,15 +59,24 @@ def run_bot() -> None:
         )
         return
 
+    worker = threading.current_thread() is not threading.main_thread()
+
     # Uvicorn + uvloop: в фоновом потоке нет текущего loop — PTB падает на get_event_loop().
-    if threading.current_thread() is not threading.main_thread():
+    if worker:
         loop = asyncio.new_event_loop()
         asyncio.set_event_loop(loop)
 
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", start))
     log.info("Бот polling запущен (bot.py)")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    # add_signal_handler() в uvloop только из main thread — в воркере отключаем stop_signals.
+    if worker:
+        application.run_polling(
+            allowed_updates=Update.ALL_TYPES,
+            stop_signals=None,
+        )
+    else:
+        application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
