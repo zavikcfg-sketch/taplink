@@ -3,8 +3,8 @@
 Укажи в панели запуска файла: bot.py (не vite.config.ts).
 
 Переменные окружения:
-  BOT_TOKEN     — токен от @BotFather
-  PUBLIC_URL    — https://твой-сайт без слэша в конце (кнопка Mini App)
+  BOT_TOKEN     — 8690806356:AAEWMrrhedide-uKOusAneSzNoebMVEjuSc
+  PUBLIC_URL    — https://taplink.bothost.tech
 """
 from __future__ import annotations
 
