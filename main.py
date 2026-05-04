@@ -21,6 +21,10 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
 log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent
@@ -55,7 +59,7 @@ async def lifespan(_: FastAPI):
 
     t = threading.Thread(target=run_bot, name="telegram-bot", daemon=True)
     t.start()
-    log.info("Поток бота запущен")
+    log.info("Поток бота запущен (если нет BOT_TOKEN — см. логи bot)")
     yield
 
 

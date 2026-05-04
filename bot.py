@@ -52,7 +52,10 @@ def run_bot() -> None:
     """Блокирующий polling (удобно вызывать из отдельного потока)."""
     token = os.environ.get("BOT_TOKEN", "").strip()
     if not token:
-        raise SystemExit("BOT_TOKEN не задан в переменных окружения")
+        log.error(
+            "BOT_TOKEN не задан — бот не запущен. Сайт из dist/ всё равно работает.",
+        )
+        return
 
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", start))
