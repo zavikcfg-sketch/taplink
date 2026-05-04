@@ -1,3 +1,4 @@
+# Если нет файла на этапе npm ci, те же пины в package.json → postinstall (inline).
 python-telegram-bot==21.10
 fastapi==0.115.6
-uvicorn
+uvicorn[standard]==0.34.0

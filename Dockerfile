@@ -6,8 +6,8 @@ RUN apt-get update \
   && apt-get install -y --no-install-recommends python3 python3-pip \
   && rm -rf /var/lib/apt/lists/*
 
-# Вместе с package*.json — иначе postinstall не найдёт скрипт / requirements.
-COPY package.json package-lock.json requirements.txt install-py-deps.mjs ./
+# postinstall в package.json сам вызывает pip (requirements.txt по возможности).
+COPY package.json package-lock.json requirements.txt ./
 RUN npm ci --omit=dev
 
 COPY . .

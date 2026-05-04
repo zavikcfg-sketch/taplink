@@ -4,7 +4,7 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "postinstall": "node install-py-deps.mjs",
+    "postinstall": "node --input-type=module --eval=\"import{spawnSync}from'node:child_process';import{existsSync}from'node:fs';if(process.env.SKIP_PY_DEPS==='1')process.exit(0);const t=existsSync('requirements.txt')?['-r','requirements.txt']:['uvicorn[standard]==0.34.0','fastapi==0.115.6','python-telegram-bot==21.10'];const p=['-m','pip','install','--disable-pip-version-check',...t];const a=[['python3',p],['python',p],['py',['-3',...p]]];for(const[c,x]of a){const r=spawnSync(c,x,{stdio:'inherit'});if(r.error){if(r.error.code==='ENOENT')continue;process.exit(1)}process.exit(r.status===null?1:r.status)}process.exit(1)\"",
     "dev": "vite",
     "build": "tsc -b && vite build",
     "start": "node start.mjs",
