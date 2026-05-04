@@ -9,8 +9,10 @@ Telegram-бот Taplink. Запуск:
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
+import threading
 
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
 from telegram.ext import Application, CommandHandler, ContextTypes
@@ -56,6 +58,11 @@ def run_bot() -> None:
             "BOT_TOKEN не задан — бот не запущен. Сайт из dist/ всё равно работает.",
         )
         return
+
+    # Uvicorn + uvloop: в фоновом потоке нет текущего loop — PTB падает на get_event_loop().
+    if threading.current_thread() is not threading.main_thread():
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
 
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", start))
