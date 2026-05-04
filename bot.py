@@ -1,10 +1,11 @@
 """
-Точка входа Telegram-бота для хостингов вроде Bothost (Python).
-Укажи в панели запуска файла: bot.py (не vite.config.ts).
+Telegram-бот Taplink. Запуск:
+  • только бот:  python bot.py
+  • сайт + бот:  uvicorn main:app --host 0.0.0.0 --port 3000   (см. main.py)
 
 Переменные окружения:
-  BOT_TOKEN     — 8690806356:AAEWMrrhedide-uKOusAneSzNoebMVEjuSc
-  PUBLIC_URL    — https://taplink.bothost.tech
+  BOT_TOKEN     — токен от @BotFather
+  PUBLIC_URL    — https://твой-сайт без слэша в конце (кнопки в боте)
 """
 from __future__ import annotations
 
@@ -47,16 +48,17 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     )
 
 
-def main() -> None:
+def run_bot() -> None:
+    """Блокирующий polling (удобно вызывать из отдельного потока)."""
     token = os.environ.get("BOT_TOKEN", "").strip()
     if not token:
         raise SystemExit("BOT_TOKEN не задан в переменных окружения")
 
-    app = Application.builder().token(token).build()
-    app.add_handler(CommandHandler("start", start))
+    application = Application.builder().token(token).build()
+    application.add_handler(CommandHandler("start", start))
     log.info("Бот polling запущен (bot.py)")
-    app.run_polling(allowed_updates=Update.ALL_TYPES)
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 
 
 if __name__ == "__main__":
-    main()
+    run_bot()
