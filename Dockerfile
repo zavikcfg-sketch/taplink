@@ -1,12 +1,9 @@
-# Сборка образа: postinstall ставит Python-зависимости; нужны файлы в первом COPY.
-FROM node:20-bookworm-slim
+# Alpine: пакет python3 без pip — нужен py3-pip (или postinstall сам вызовет apk в /.dockerenv).
+FROM node:20-alpine
 WORKDIR /app
 
-RUN apt-get update \
-  && apt-get install -y --no-install-recommends python3 python3-pip \
-  && rm -rf /var/lib/apt/lists/*
+RUN apk add --no-cache python3 py3-pip
 
-# postinstall в package.json сам вызывает pip (requirements.txt по возможности).
 COPY package.json package-lock.json requirements.txt ./
 RUN npm ci --omit=dev
 
