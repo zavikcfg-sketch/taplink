@@ -29,7 +29,15 @@ for (const [cmd, cmdArgs] of attempts) {
     console.error(r.error)
     process.exit(1)
   }
-  process.exit(r.status === null ? 1 : r.status)
+  const code = r.status === null ? 1 : r.status
+  if (code !== 0) {
+    console.error(
+      '\nЕсли в логе было «No module named uvicorn»:\n' +
+        '  python3 -m pip install -r requirements.txt\n' +
+        'или пересобери проект: npm ci (postinstall ставит пакеты из requirements.txt).\n',
+    )
+  }
+  process.exit(code)
 }
 
 console.error(
