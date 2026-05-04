@@ -1,20 +1,24 @@
 """
 Веб (dist/) + API публичных профилей + Telegram-бот.
+Один файл хранилища профилей (на хостингах часто копируют только main.py + bot.py).
 
 Переменные: BOT_TOKEN, PUBLIC_URL, DATA_DIR (папка для profiles/ и avatars/).
 """
 from __future__ import annotations
 
+import json
 import logging
+import os
+import re
 import threading
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
-from pathlib import Path
-
-import profile_store
 
 logging.basicConfig(
     level=logging.INFO,
@@ -24,6 +28,137 @@ log = logging.getLogger(__name__)
 
 ROOT = Path(__file__).resolve().parent
 DIST = ROOT / "dist"
+
+# --- файловое хранилище профилей (всё в main.py — проще деплой на Bothost) -----
+_DATA_DIR = Path(os.environ.get("DATA_DIR", str(ROOT / "data"))).resolve()
+_PROFILES_DIR = _DATA_DIR / "profiles"
+_AVATARS_DIR = _DATA_DIR / "avatars"
+_RESERVED_SLUGS = frozenset(
+    {"edit", "health", "assets", "favicon.ico", "api", "docs", "static"},
+)
+_SLUG_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+
+
+def ps_ensure_dirs() -> None:
+    _PROFILES_DIR.mkdir(parents=True, exist_ok=True)
+    _AVATARS_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def ps_is_valid_slug(slug: str) -> bool:
+    s = slug.strip().lower()
+    if len(s) < 2 or len(s) > 30:
+        return False
+    if s in _RESERVED_SLUGS:
+        return False
+    return bool(_SLUG_RE.fullmatch(s))
+
+
+def _ps_profile_path(slug: str) -> Path:
+    return _PROFILES_DIR / f"{slug.lower()}.json"
+
+
+def _ps_avatar_data_path(slug: str) -> Path:
+    return _AVATARS_DIR / f"{slug.lower()}.bin"
+
+
+def _ps_avatar_meta_path(slug: str) -> Path:
+    return _AVATARS_DIR / f"{slug.lower()}.json"
+
+
+def ps_load_profile(slug: str) -> dict[str, Any] | None:
+    if not ps_is_valid_slug(slug):
+        return None
+    path = _ps_profile_path(slug)
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    data.setdefault("slug", slug.lower())
+    data.pop("hasAvatar", None)
+    data["hasAvatar"] = _ps_avatar_data_path(slug).is_file()
+    return data
+
+
+def _ps_sanitize_links(raw: Any) -> list[dict[str, str]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, str]] = []
+    for item in raw[:30]:
+        if not isinstance(item, dict):
+            continue
+        out.append(
+            {
+                "id": str(item.get("id", ""))[:40] or "link",
+                "title": str(item.get("title", ""))[:60],
+                "url": str(item.get("url", ""))[:2000],
+            }
+        )
+    return out
+
+
+def ps_save_profile_json(slug: str, payload: dict[str, Any]) -> dict[str, Any]:
+    ps_ensure_dirs()
+    if not ps_is_valid_slug(slug):
+        raise ValueError("invalid_slug")
+    now = datetime.now(timezone.utc).isoformat()
+    out = {
+        "slug": slug.lower(),
+        "displayName": str(payload.get("displayName", ""))[:80],
+        "bio": str(payload.get("bio", ""))[:500],
+        "links": _ps_sanitize_links(payload.get("links")),
+        "updatedAt": now,
+    }
+    path = _ps_profile_path(slug)
+    path.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8")
+    return out
+
+
+def ps_save_avatar(slug: str, data: bytes, content_type: str) -> None:
+    if not ps_is_valid_slug(slug):
+        raise ValueError("invalid_slug")
+    if len(data) > 2_500_000:
+        raise ValueError("too_large")
+    ct = (content_type or "application/octet-stream").split(";")[0].strip().lower()
+    if not ct.startswith("image/"):
+        raise ValueError("not_image")
+    ps_ensure_dirs()
+    _ps_avatar_data_path(slug).write_bytes(data)
+    _ps_avatar_meta_path(slug).write_text(
+        json.dumps({"contentType": ct}),
+        encoding="utf-8",
+    )
+
+
+def ps_delete_avatar(slug: str) -> None:
+    if not ps_is_valid_slug(slug):
+        return
+    for p in (_ps_avatar_data_path(slug), _ps_avatar_meta_path(slug)):
+        try:
+            p.unlink(missing_ok=True)
+        except OSError:
+            pass
+
+
+def ps_avatar_file_response(slug: str) -> FileResponse | None:
+    if not ps_is_valid_slug(slug):
+        return None
+    data_p = _ps_avatar_data_path(slug)
+    meta_p = _ps_avatar_meta_path(slug)
+    if not data_p.is_file():
+        return None
+    media = "image/jpeg"
+    if meta_p.is_file():
+        try:
+            meta = json.loads(meta_p.read_text(encoding="utf-8"))
+            if isinstance(meta, dict) and meta.get("contentType"):
+                media = str(meta["contentType"])
+        except (OSError, json.JSONDecodeError):
+            pass
+    return FileResponse(data_p, media_type=media)
 
 
 class LinkIn(BaseModel):
@@ -60,7 +195,7 @@ def _safe_file(path: Path) -> Path | None:
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
-    profile_store.ensure_dirs()
+    ps_ensure_dirs()
     from bot import run_bot
 
     t = threading.Thread(target=run_bot, name="telegram-bot", daemon=True)
@@ -79,7 +214,7 @@ def health():
 
 @app.get("/api/public/{slug}")
 def api_get_public(slug: str):
-    data = profile_store.load_profile(slug)
+    data = ps_load_profile(slug)
     if data is None:
         raise HTTPException(status_code=404, detail="not_found")
     return data
@@ -87,10 +222,10 @@ def api_get_public(slug: str):
 
 @app.put("/api/public/{slug}")
 def api_put_public(slug: str, body: ProfileIn):
-    if not profile_store.is_valid_slug(slug):
+    if not ps_is_valid_slug(slug):
         raise HTTPException(status_code=400, detail="invalid_slug")
     try:
-        saved = profile_store.save_profile_json(
+        saved = ps_save_profile_json(
             slug,
             {
                 "displayName": body.displayName,
@@ -105,7 +240,7 @@ def api_put_public(slug: str, body: ProfileIn):
 
 @app.get("/api/public/{slug}/avatar")
 def api_get_avatar(slug: str):
-    fr = profile_store.avatar_file_response(slug)
+    fr = ps_avatar_file_response(slug)
     if fr is None:
         raise HTTPException(status_code=404, detail="no_avatar")
     return fr
@@ -113,11 +248,11 @@ def api_get_avatar(slug: str):
 
 @app.post("/api/public/{slug}/avatar")
 async def api_post_avatar(slug: str, file: UploadFile = File(...)):
-    if not profile_store.is_valid_slug(slug):
+    if not ps_is_valid_slug(slug):
         raise HTTPException(status_code=400, detail="invalid_slug")
     data = await file.read()
     try:
-        profile_store.save_avatar(slug, data, file.content_type or "")
+        ps_save_avatar(slug, data, file.content_type or "")
     except ValueError as e:
         code = str(e)
         if code == "too_large":
@@ -130,13 +265,12 @@ async def api_post_avatar(slug: str, file: UploadFile = File(...)):
 
 @app.delete("/api/public/{slug}/avatar")
 def api_delete_avatar(slug: str):
-    if not profile_store.is_valid_slug(slug):
+    if not ps_is_valid_slug(slug):
         raise HTTPException(status_code=400, detail="invalid_slug")
-    profile_store.delete_avatar(slug)
-    # обновить json профиля без hasAvatar
-    p = profile_store.load_profile(slug)
+    ps_delete_avatar(slug)
+    p = ps_load_profile(slug)
     if p:
-        profile_store.save_profile_json(
+        ps_save_profile_json(
             slug,
             {
                 "displayName": p.get("displayName", ""),
