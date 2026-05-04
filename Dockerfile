@@ -1,4 +1,4 @@
-# Alpine: пакет python3 без pip — нужен py3-pip (или postinstall сам вызовет apk в /.dockerenv).
+# Alpine: python3 + pip; postinstall ставит зависимости с --break-system-packages (PEP 668).
 FROM node:20-alpine
 WORKDIR /app
 
