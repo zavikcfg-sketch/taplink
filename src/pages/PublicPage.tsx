@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { fetchPublicProfile, publicAvatarUrl, publicBackgroundUrl, recordLinkClick } from '../lib/api'
+import ProfileCard from '../components/ProfileCard'
+import { fetchPublicProfile, publicOgImageUrl, recordLinkClick, reportPublicPage } from '../lib/api'
 import { loadAvatarBlob, loadProfile } from '../lib/profileStorage'
-import { normalizeHttpUrl } from '../lib/url'
 import type { Profile } from '../types/profile'
 import './PublicPage.css'
 
@@ -17,109 +17,28 @@ function setOrCreateMeta(attr: 'name' | 'property', key: string, content: string
   el.setAttribute('content', content)
 }
 
-function ProfileAvatarLocal() {
+function useLocalAvatarBlobUrl(enabled: boolean): string | null {
   const [url, setUrl] = useState<string | null>(null)
 
   useEffect(() => {
+    if (!enabled) {
+      setUrl(null)
+      return
+    }
     let cancelled = false
-    const created = { current: null as string | null }
+    let created: string | null = null
     void loadAvatarBlob().then((b) => {
       if (cancelled || !b) return
-      const u = URL.createObjectURL(b)
-      created.current = u
-      setUrl(u)
+      created = URL.createObjectURL(b)
+      setUrl(created)
     })
     return () => {
       cancelled = true
-      if (created.current) URL.revokeObjectURL(created.current)
+      if (created) URL.revokeObjectURL(created)
     }
-  }, [])
+  }, [enabled])
 
-  if (url) {
-    return <div className="pub__avatar" style={{ backgroundImage: `url(${url})` }} />
-  }
-  return <div className="pub__avatar pub__avatar--placeholder" aria-hidden />
-}
-
-function PublicBackground({
-  slug,
-  kind,
-  cacheBust,
-}: {
-  slug: string
-  kind: 'image' | 'video'
-  cacheBust?: string
-}) {
-  const src = publicBackgroundUrl(slug, cacheBust)
-  const [mediaFailed, setMediaFailed] = useState(false)
-  const [reduceMotion, setReduceMotion] = useState(
-    () => typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches,
-  )
-
-  useEffect(() => {
-    const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
-    const fn = () => setReduceMotion(mq.matches)
-    mq.addEventListener('change', fn)
-    return () => mq.removeEventListener('change', fn)
-  }, [])
-
-  if (mediaFailed || (reduceMotion && kind === 'video')) {
-    return (
-      <div className="pub__bg pub__bg--fallback" aria-hidden>
-        <div className="pub__bgScrim" />
-      </div>
-    )
-  }
-
-  return (
-    <div className="pub__bg" aria-hidden>
-      {kind === 'video' ? (
-        <video
-          className="pub__bgMedia"
-          src={src}
-          autoPlay
-          muted
-          loop
-          playsInline
-          preload="metadata"
-          onError={() => setMediaFailed(true)}
-        />
-      ) : (
-        <img
-          className="pub__bgMedia"
-          src={src}
-          alt=""
-          decoding="async"
-          onError={() => setMediaFailed(true)}
-        />
-      )}
-      <div className="pub__bgScrim" />
-    </div>
-  )
-}
-
-function RemoteAvatar({
-  slug,
-  cacheBust,
-}: {
-  slug: string
-  cacheBust?: string
-}) {
-  const src = publicAvatarUrl(slug, cacheBust)
-  const [ok, setOk] = useState(true)
-  if (!ok) {
-    return <div className="pub__avatar pub__avatar--placeholder" aria-hidden />
-  }
-  return (
-    <div className="pub__avatarFrame">
-      <img
-        src={src}
-        alt=""
-        className="pub__avatarImg"
-        onError={() => setOk(false)}
-      />
-    </div>
-  )
+  return url
 }
 
 function PublicPageInner({ slug }: { slug: string }) {
@@ -127,6 +46,10 @@ function PublicPageInner({ slug }: { slug: string }) {
   const [phase, setPhase] = useState<'loading' | 'ready'>('loading')
   const [profile, setProfile] = useState<Profile | null>(null)
   const [fromLocal, setFromLocal] = useState(false)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [reportText, setReportText] = useState('')
+  const [reportOk, setReportOk] = useState<string | null>(null)
+  const [reportErr, setReportErr] = useState<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
@@ -155,6 +78,8 @@ function PublicPageInner({ slug }: { slug: string }) {
     }
   }, [want])
 
+  const localAvatarUrl = useLocalAvatarBlobUrl(Boolean(fromLocal && profile && !profile.hasAvatar))
+
   useEffect(() => {
     if (!profile) {
       document.title = 'Taplink'
@@ -166,10 +91,31 @@ function PublicPageInner({ slug }: { slug: string }) {
       profile.bio.trim() ||
       `Страница ${titleBase} — ссылки и контакты на Taplink.`
     ).slice(0, 200)
+    const ogImg = publicOgImageUrl(profile.slug)
     setOrCreateMeta('name', 'description', desc)
     setOrCreateMeta('property', 'og:title', `${titleBase} — Taplink`)
     setOrCreateMeta('property', 'og:description', desc)
+    setOrCreateMeta('property', 'og:image', ogImg)
+    setOrCreateMeta('property', 'og:image:type', 'image/png')
+    setOrCreateMeta('name', 'twitter:card', 'summary_large_image')
+    setOrCreateMeta('name', 'twitter:title', `${titleBase} — Taplink`)
+    setOrCreateMeta('name', 'twitter:description', desc)
+    setOrCreateMeta('name', 'twitter:image', ogImg)
   }, [profile])
+
+  const submitReport = async () => {
+    if (!profile) return
+    setReportErr(null)
+    setReportOk(null)
+    try {
+      await reportPublicPage(profile.slug, reportText)
+      setReportOk('Спасибо, жалоба отправлена.')
+      setReportText('')
+      setReportOpen(false)
+    } catch (e) {
+      setReportErr(e instanceof Error ? e.message : String(e))
+    }
+  }
 
   if (phase === 'loading') {
     return (
@@ -207,75 +153,63 @@ function PublicPageInner({ slug }: { slug: string }) {
     )
   }
 
-  const validLinks = profile.links.flatMap((l) => {
-    const href = normalizeHttpUrl(l.url)
-    if (!href) return []
-    return [{ ...l, href }]
-  })
-
-  const showRemoteAvatar = Boolean(profile.hasAvatar)
-  const showLocalAvatar = fromLocal && !showRemoteAvatar
-  const bgKind: 'image' | 'video' | null =
+  const bgKind =
     profile.hasBackground && profile.backgroundKind === 'video'
-      ? 'video'
+      ? ('video' as const)
       : profile.hasBackground
-        ? 'image'
+        ? ('image' as const)
         : null
 
   return (
     <div className={`pub${bgKind ? ' pub--hasBg' : ''}`}>
-      {bgKind ? (
-        <PublicBackground slug={profile.slug} kind={bgKind} cacheBust={profile.updatedAt} />
-      ) : (
-        <div className="pub__glow" aria-hidden />
-      )}
-      <div className="pub__card">
-        {showRemoteAvatar ? (
-          <RemoteAvatar slug={profile.slug} cacheBust={profile.updatedAt} />
-        ) : showLocalAvatar ? (
-          <ProfileAvatarLocal key={profile.slug} />
-        ) : (
-          <div className="pub__avatar pub__avatar--placeholder" aria-hidden />
-        )}
-        <h1 className="pub__name">{profile.displayName || profile.slug}</h1>
-        {profile.bio ? <p className="pub__bio">{profile.bio}</p> : null}
+      {reportErr ? <p className="pub__banner pub__banner--warn">{reportErr}</p> : null}
+      {reportOk ? <p className="pub__banner pub__banner--ok">{reportOk}</p> : null}
 
-        <ul className="pub__links">
-          {validLinks.map((l) => {
-            const clicks = profile.linkClicks?.[l.id] ?? 0
-            return (
-              <li key={l.id}>
-                <a
-                  className="pub__link"
-                  href={l.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={() => recordLinkClick(profile.slug, l.id)}
-                >
-                  <span className="pub__linkLabel">
-                    {l.title.trim() || new URL(l.href).hostname}
-                  </span>
-                  {clicks > 0 ? (
-                    <span className="pub__linkStat" aria-label={`Переходов: ${clicks}`}>
-                      {clicks}
-                    </span>
-                  ) : null}
-                </a>
-              </li>
-            )
-          })}
-        </ul>
+      <ProfileCard
+        profile={profile}
+        localAvatarUrl={localAvatarUrl}
+        showGlowFallback={!bgKind}
+        onLinkNavigate={(linkId) => recordLinkClick(profile.slug, linkId)}
+        footerExtra={
+          !fromLocal ? (
+            <button type="button" className="pcard__reportBtn" onClick={() => setReportOpen(true)}>
+              Пожаловаться
+            </button>
+          ) : null
+        }
+      />
 
-        <footer className="pub__foot">
-          <Link to="/" className="pub__mini">
-            Taplink
-          </Link>
-          <span className="pub__dot">·</span>
-          <Link to="/edit" className="pub__mini">
-            Изменить
-          </Link>
-        </footer>
-      </div>
+      {reportOpen ? (
+        <div className="pub__modalOverlay" role="presentation" onClick={() => setReportOpen(false)}>
+          <div
+            className="pub__modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="report-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="report-title" className="pub__modalTitle">
+              Жалоба на страницу
+            </h2>
+            <p className="pub__modalHint">Опишите проблему (спам, фишинг и т.д.).</p>
+            <textarea
+              className="pub__modalInput"
+              rows={4}
+              value={reportText}
+              onChange={(e) => setReportText(e.target.value)}
+              placeholder="Текст жалобы…"
+            />
+            <div className="pub__modalActions">
+              <button type="button" className="pub__btn pub__btn--ghost" onClick={() => setReportOpen(false)}>
+                Отмена
+              </button>
+              <button type="button" className="pub__btn" onClick={() => void submitReport()}>
+                Отправить
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

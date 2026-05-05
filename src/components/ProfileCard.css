@@ -1,0 +1,298 @@
+.pcard {
+  position: relative;
+  min-height: 100%;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 18px 48px;
+  box-sizing: border-box;
+}
+
+.pcard--hasBg .pcard__card {
+  background: rgba(10, 10, 18, 0.72);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.55),
+    0 0 0 1px rgba(255, 255, 255, 0.06) inset;
+}
+
+.pcard--theme-light.pcard--hasBg .pcard__card {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+.pcard__bg {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.pcard__bgMedia {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  object-position: center;
+  transform: scale(1.02);
+}
+
+.pcard__bgScrim {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    ellipse 85% 70% at 50% 45%,
+    rgba(7, 8, 15, 0.15) 0%,
+    rgba(7, 8, 15, 0.75) 55%,
+    rgba(7, 8, 15, 0.92) 100%
+  );
+}
+
+.pcard__bg--fallback {
+  background: linear-gradient(145deg, #1e1035 0%, #07080f 45%, #0c1922 100%);
+}
+
+.pcard__glow {
+  position: fixed;
+  width: 420px;
+  height: 420px;
+  top: 10%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(168, 85, 247, 0.28) 0%, transparent 68%);
+  filter: blur(70px);
+  pointer-events: none;
+  z-index: 0;
+}
+
+.pcard__card {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  max-width: 420px;
+  padding: 32px 24px 24px;
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px);
+  text-align: center;
+  color: rgba(248, 250, 252, 0.92);
+}
+
+.pcard--theme-light .pcard__card {
+  color: rgba(15, 23, 42, 0.92);
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(15, 23, 42, 0.1);
+}
+
+.pcard--theme-light .pcard__bio {
+  color: rgba(51, 65, 85, 0.85);
+}
+
+.pcard--theme-ocean .pcard__link {
+  background: linear-gradient(145deg, #0ea5e9 0%, #0284c7 50%, #0369a1 100%);
+  box-shadow: 0 4px 20px rgba(14, 165, 233, 0.35);
+}
+
+.pcard--theme-sunset .pcard__link {
+  background: linear-gradient(145deg, #f97316 0%, #ea580c 50%, #c2410c 100%);
+  box-shadow: 0 4px 20px rgba(249, 115, 22, 0.35);
+}
+
+.pcard--theme-mono .pcard__link {
+  background: linear-gradient(145deg, #334155 0%, #1e293b 100%);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+}
+
+.pcard--theme-light .pcard__link {
+  background: linear-gradient(145deg, #7c3aed 0%, #6d28d9 100%);
+  color: #fff;
+}
+
+.pcard__avatar {
+  width: 104px;
+  height: 104px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.pcard--theme-light .pcard__avatar {
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+.pcard__avatar--ph {
+  background: linear-gradient(145deg, rgba(168, 85, 247, 0.5), rgba(34, 211, 238, 0.25));
+}
+
+.pcard__avatarFrame {
+  width: 104px;
+  height: 104px;
+  margin: 0 auto 18px;
+  border-radius: 50%;
+  overflow: hidden;
+  border: 3px solid rgba(255, 255, 255, 0.15);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.pcard__avatarImg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.pcard__name {
+  margin: 0 0 10px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+  color: #fff;
+}
+
+.pcard--theme-light .pcard__name {
+  color: #0f172a;
+}
+
+.pcard__bio {
+  margin: 0 0 22px;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  color: rgba(226, 232, 240, 0.72);
+  white-space: pre-wrap;
+}
+
+.pcard__links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pcard__link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px 18px;
+  border-radius: 14px;
+  font-size: 0.98rem;
+  font-weight: 600;
+  text-decoration: none;
+  color: #fff;
+  background: linear-gradient(145deg, #7c3aed 0%, #a855f7 48%, #5b21b6 100%);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 4px 20px rgba(124, 58, 237, 0.35);
+  transition:
+    transform 0.15s ease,
+    filter 0.15s ease;
+}
+
+.pcard__link:hover {
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+}
+
+.pcard__linkMain {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: center;
+  min-width: 0;
+}
+
+.pcard__hint {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+
+.pcard__linkLabel {
+  min-width: 0;
+  text-align: center;
+}
+
+.pcard__stat {
+  flex-shrink: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.25);
+  color: rgba(248, 250, 252, 0.85);
+}
+
+.pcard__foot {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  font-size: 0.85rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.pcard__footRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.pcard__footExtra {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.pcard__reportBtn {
+  font: inherit;
+  font-size: 0.78rem;
+  color: rgba(148, 163, 184, 0.85);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-decoration: underline;
+  padding: 4px;
+}
+
+.pcard__reportBtn:hover {
+  color: rgba(226, 232, 240, 0.95);
+}
+
+.pcard--theme-light .pcard__reportBtn {
+  color: rgba(71, 85, 105, 0.95);
+}
+
+.pcard--theme-light .pcard__foot {
+  border-top-color: rgba(15, 23, 42, 0.08);
+}
+
+.pcard__mini {
+  color: rgba(196, 181, 253, 0.9);
+  text-decoration: none;
+}
+
+.pcard--theme-light .pcard__mini {
+  color: #6d28d9;
+}
+
+.pcard__mini:hover {
+  text-decoration: underline;
+}
+
+.pcard__dot {
+  opacity: 0.45;
+}

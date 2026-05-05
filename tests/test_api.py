@@ -56,9 +56,9 @@ def test_click_counter(client):
             "links": [{"id": link_id, "title": "Go", "url": "https://example.com"}],
         },
     )
-    c = client.post("/api/public/counter-slug/click", json={"linkId": link_id})
+    c = client.post("/api/public/counter-slug/click", json={"linkId": link_id, "website": ""})
     assert c.status_code == 200, c.text
-    c2 = client.post("/api/public/counter-slug/click", json={"linkId": link_id})
+    c2 = client.post("/api/public/counter-slug/click", json={"linkId": link_id, "website": ""})
     assert c2.status_code == 200
 
     g = client.get("/api/public/counter-slug")

@@ -1,7 +1,13 @@
+export type ThemeId = 'purple' | 'ocean' | 'sunset' | 'mono' | 'light'
+
 export type ProfileLink = {
   id: string
   title: string
   url: string
+  hidden?: boolean
+  /** ISO или datetime-local строка с сервера */
+  visibleFrom?: string
+  visibleUntil?: string
 }
 
 export type Profile = {
@@ -9,12 +15,11 @@ export type Profile = {
   displayName: string
   bio: string
   links: ProfileLink[]
+  themeId?: ThemeId
   /** ISO с сервера */
   updatedAt?: string
   hasAvatar?: boolean
   hasBackground?: boolean
-  /** Тип загруженного фона (для публичной страницы) */
   backgroundKind?: 'image' | 'video'
-  /** Счётчики переходов по id ссылки (с сервера) */
   linkClicks?: Record<string, number>
 }

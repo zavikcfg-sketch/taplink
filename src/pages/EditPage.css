@@ -104,6 +104,10 @@
   margin: 0 auto;
 }
 
+.edit__main--wide {
+  max-width: min(920px, 100%);
+}
+
 .edit__toast {
   font-size: 0.88rem;
   color: rgba(52, 211, 153, 0.95);
@@ -449,6 +453,208 @@
   color: #fde68a;
 }
 
+.edit__previewShell {
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(0, 0, 0, 0.35);
+  max-width: 440px;
+  margin: 0 auto;
+}
+
+.edit__themeGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.edit__themeChip {
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 999px;
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(248, 250, 252, 0.92);
+}
+
+.edit__themeChip--active {
+  border-color: rgba(168, 85, 247, 0.55);
+  background: rgba(168, 85, 247, 0.18);
+  color: #f5f3ff;
+}
+
+.edit__linkBlock {
+  list-style: none;
+  padding: 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.22);
+}
+
+.edit__linkRowTop {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr auto auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.edit__drag {
+  cursor: grab;
+  user-select: none;
+  padding: 8px 4px;
+  color: rgba(148, 163, 184, 0.85);
+  font-size: 1rem;
+  line-height: 1;
+}
+
+.edit__drag:active {
+  cursor: grabbing;
+}
+
+.edit__input--inRow {
+  margin-bottom: 0;
+}
+
+.edit__hideLbl {
+  font-size: 0.76rem;
+  color: rgba(226, 232, 240, 0.65);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.edit__hideLbl input {
+  accent-color: #a855f7;
+}
+
+.edit__linkSchedule {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.edit__scheduleLbl {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: rgba(226, 232, 240, 0.45);
+}
+
+.edit__scheduleInput {
+  font: inherit;
+  font-size: 0.82rem;
+  color: #f8fafc;
+  padding: 6px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.edit__shareBlock {
+  margin-top: 8px;
+}
+
+.edit__public--muted {
+  font-size: 0.84rem;
+  color: rgba(226, 232, 240, 0.5);
+}
+
+.edit__qrRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  align-items: center;
+  margin-top: 14px;
+}
+
+.edit__qrBox {
+  padding: 12px;
+  border-radius: 14px;
+  background: #fff;
+}
+
+.edit__qrHint {
+  flex: 1;
+  min-width: 160px;
+}
+
+.edit__qrTitle {
+  margin: 0 0 10px;
+  font-size: 0.88rem;
+  color: rgba(226, 232, 240, 0.65);
+}
+
+.edit__pill--accent {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  border-color: rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.12);
+  color: rgba(224, 242, 254, 0.98);
+}
+
+.edit__panel--danger {
+  border-color: rgba(248, 113, 113, 0.22);
+}
+
+.edit__dangerRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.edit__modalOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(7, 8, 15, 0.72);
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+
+.edit__modal {
+  width: min(480px, 100%);
+  padding: 22px;
+  border-radius: 18px;
+  background: rgba(22, 24, 36, 0.98);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: rgba(226, 232, 240, 0.92);
+}
+
+.edit__modalTitle {
+  margin: 0 0 12px;
+  font-size: 1.15rem;
+  color: #f8fafc;
+}
+
+.edit__modalText {
+  margin: 0 0 18px;
+  font-size: 0.92rem;
+  line-height: 1.55;
+  color: rgba(226, 232, 240, 0.72);
+}
+
+.edit__modalActions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.edit__saveBtn--modal {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
 @media (max-width: 560px) {
   .edit__linkRow {
     grid-template-columns: 1fr;
@@ -456,5 +662,19 @@
 
   .edit__iconBtn {
     width: 100%;
+  }
+
+  .edit__linkRowTop {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .edit__drag {
+    align-self: flex-start;
+  }
+
+  .edit__hideLbl {
+    justify-content: flex-start;
   }
 }

@@ -5,5 +5,7 @@
   "favicon.ico",
   "api",
   "docs",
-  "static"
+  "static",
+  "r",
+  "catalog"
 ]

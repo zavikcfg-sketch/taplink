@@ -1,9 +1,14 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
-import { Link } from 'react-router-dom'
-import type { Profile, ProfileLink } from '../types/profile'
+import QRCode from 'react-qr-code'
+import { Link, useNavigate } from 'react-router-dom'
+import ProfileCard from '../components/ProfileCard'
+import type { Profile, ProfileLink, ThemeId } from '../types/profile'
 import {
+  deleteAccountOnServer,
   deleteAvatarOnServer,
   deleteBackgroundOnServer,
+  exportProfileJson,
+  fetchEditorProfile,
   fetchPublicProfile,
   publicAvatarUrl,
   publicBackgroundUrl,
@@ -11,7 +16,9 @@ import {
   uploadAvatarToServer,
   uploadBackgroundToServer,
 } from '../lib/api'
+import { filterLinksForPublic } from '../lib/linkFilters'
 import {
+  clearAllLocalProfile,
   isValidSlug,
   loadAvatarBlob,
   loadBackgroundBlob,
@@ -20,11 +27,37 @@ import {
   saveBackgroundBlob,
   saveProfile,
 } from '../lib/profileStorage'
+import { THEME_IDS, THEME_LABELS, normalizeThemeId } from '../lib/themes'
 import { isTelegramWebApp } from '../lib/telegramInit'
 import './EditPage.css'
 
 function newLink(): ProfileLink {
-  return { id: crypto.randomUUID(), title: '', url: '' }
+  return { id: crypto.randomUUID(), title: '', url: '', hidden: false }
+}
+
+function isoToDatetimeLocalValue(raw: string | undefined): string {
+  if (!raw?.trim()) return ''
+  const d = new Date(raw.trim())
+  if (!Number.isFinite(d.getTime())) return raw.trim().slice(0, 16)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
+function datetimeLocalToStored(raw: string): string | undefined {
+  const t = raw.trim()
+  if (!t) return undefined
+  const d = new Date(t)
+  return Number.isFinite(d.getTime()) ? d.toISOString() : t
+}
+
+function reorderLinks(list: ProfileLink[], fromId: string, toId: string): ProfileLink[] {
+  const i = list.findIndex((x) => x.id === fromId)
+  const j = list.findIndex((x) => x.id === toId)
+  if (i < 0 || j < 0 || i === j) return list
+  const next = [...list]
+  const [item] = next.splice(i, 1)
+  next.splice(j, 0, item)
+  return next
 }
 
 function applyProfile(
@@ -33,11 +66,13 @@ function applyProfile(
   setDisplayName: (v: string) => void,
   setBio: (v: string) => void,
   setLinks: (v: ProfileLink[]) => void,
+  setThemeId: (v: ThemeId) => void,
 ) {
   setSlug(p.slug)
   setDisplayName(p.displayName)
   setBio(p.bio)
   setLinks(p.links.length ? p.links : [newLink()])
+  setThemeId(normalizeThemeId(p.themeId))
 }
 
 type ServerMeta = {
@@ -47,11 +82,15 @@ type ServerMeta = {
   backgroundKind?: 'image' | 'video'
 }
 
+const claimStorageKey = (slug: string) => `taplink_claim_${slug}`
+
 export default function EditPage() {
   const slugId = useId()
+  const navigate = useNavigate()
   const [slug, setSlug] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [bio, setBio] = useState('')
+  const [themeId, setThemeId] = useState<ThemeId>('purple')
   const [links, setLinks] = useState<ProfileLink[]>([newLink()])
   const [serverMeta, setServerMeta] = useState<ServerMeta>({})
   const [avatarRemoved, setAvatarRemoved] = useState(false)
@@ -66,8 +105,10 @@ export default function EditPage() {
   const [syncOk, setSyncOk] = useState<string | null>(null)
   const [syncErr, setSyncErr] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [claimSlug, setClaimSlug] = useState<string | null>(null)
   const fileRef = useRef<HTMLInputElement>(null)
   const bgFileRef = useRef<HTMLInputElement>(null)
+  const dragLinkId = useRef<string | null>(null)
 
   const setAvatarBlobUrlSafe = (url: string | null) => {
     if (avatarBlobUrlRef.current) {
@@ -91,12 +132,15 @@ export default function EditPage() {
     let cancelled = false
     ;(async () => {
       const local = loadProfile()
-      let remote: Awaited<ReturnType<typeof fetchPublicProfile>> = null
+      let remote: Profile | null = null
       if (local?.slug && isValidSlug(local.slug)) {
-        remote = await fetchPublicProfile(local.slug).catch(() => null)
+        remote = await fetchEditorProfile(local.slug).catch(() => null)
         if (cancelled) return
+        if (!remote) {
+          remote = await fetchPublicProfile(local.slug).catch(() => null)
+        }
         if (remote) {
-          applyProfile(remote, setSlug, setDisplayName, setBio, setLinks)
+          applyProfile(remote, setSlug, setDisplayName, setBio, setLinks, setThemeId)
           setServerMeta({
             updatedAt: remote.updatedAt,
             hasAvatar: remote.hasAvatar,
@@ -104,10 +148,10 @@ export default function EditPage() {
             backgroundKind: remote.backgroundKind,
           })
         } else {
-          applyProfile(local, setSlug, setDisplayName, setBio, setLinks)
+          applyProfile(local, setSlug, setDisplayName, setBio, setLinks, setThemeId)
         }
       } else if (local) {
-        applyProfile(local, setSlug, setDisplayName, setBio, setLinks)
+        applyProfile(local, setSlug, setDisplayName, setBio, setLinks, setThemeId)
       }
       const blob = await loadAvatarBlob()
       if (cancelled) return
@@ -182,6 +226,17 @@ export default function EditPage() {
       ? `${window.location.origin}/${slug.trim().toLowerCase()}`
       : null
 
+  const shortRefUrl =
+    slug.trim() && isValidSlug(slug.trim())
+      ? `${window.location.origin}/r/${slug.trim().toLowerCase()}`
+      : null
+
+  const shareTelegramUrl = publicUrl
+    ? `https://t.me/share/url?url=${encodeURIComponent(publicUrl)}&text=${encodeURIComponent(
+        displayName.trim() || slugOk,
+      )}`
+    : null
+
   const persistBackgroundFile = async (file: File | null) => {
     if (!file) {
       await saveBackgroundBlob(null)
@@ -212,74 +267,137 @@ export default function EditPage() {
     setAvatarRemoved(false)
   }
 
-  const onSave = useCallback(async () => {
-    const s = slug.trim().toLowerCase()
-    if (!isValidSlug(s)) {
-      setSlugError(
-        'Адрес страницы: латиница и цифры, дефис между словами, 2–30 символов. Нельзя: edit, api…',
-      )
-      return
-    }
-    setSlugError(null)
-    setSyncErr(null)
-    setSyncOk(null)
+  const runSave = useCallback(
+    async (opts?: { skipClaim?: boolean }) => {
+      const s = slug.trim().toLowerCase()
+      if (!isValidSlug(s)) {
+        setSlugError(
+          'Адрес страницы: латиница и цифры, дефис между словами, 2–30 символов. Нельзя: edit, api…',
+        )
+        return
+      }
+      setSlugError(null)
+      setSyncErr(null)
+      setSyncOk(null)
 
-    const profile: Profile = {
-      slug: s,
+      if (!opts?.skipClaim) {
+        const existsOnServer = await fetchPublicProfile(s).catch(() => null)
+        if (!existsOnServer && !sessionStorage.getItem(claimStorageKey(s))) {
+          setClaimSlug(s)
+          return
+        }
+      }
+
+      const profile: Profile = {
+        slug: s,
+        displayName: displayName.trim(),
+        bio: bio.trim(),
+        links: links.filter((l) => l.title.trim() || l.url.trim()),
+        themeId,
+      }
+      saveProfile(profile)
+
+      setSaving(true)
+      try {
+        await savePublicProfile(s, {
+          displayName: profile.displayName,
+          bio: profile.bio,
+          links: profile.links,
+          themeId,
+        })
+        const avBlob = await loadAvatarBlob()
+        if (avBlob) {
+          await uploadAvatarToServer(s, avBlob)
+        } else if (avatarRemoved) {
+          await deleteAvatarOnServer(s).catch(() => {})
+        }
+        const bgBlob = await loadBackgroundBlob()
+        if (bgBlob) {
+          await uploadBackgroundToServer(s, bgBlob)
+        } else if (bgRemoved) {
+          await deleteBackgroundOnServer(s).catch(() => {})
+        }
+        const fresh = await fetchPublicProfile(s).catch(() => null)
+        if (fresh) {
+          setServerMeta({
+            updatedAt: fresh.updatedAt,
+            hasAvatar: fresh.hasAvatar,
+            hasBackground: fresh.hasBackground,
+            backgroundKind: fresh.backgroundKind,
+          })
+        }
+        setAvatarRemoved(false)
+        setBgRemoved(false)
+        setSyncOk('Профиль на сервере — ссылка открывается у всех в браузере.')
+        setSavedAt(
+          new Date().toLocaleString('ru-RU', { timeStyle: 'short', dateStyle: 'short' }),
+        )
+      } catch (e) {
+        let msg = e instanceof Error ? e.message : String(e)
+        if (msg.includes('telegram_auth_required') || msg.includes('401')) {
+          msg =
+            'Нужна авторизация Telegram: откройте редактор кнопкой «Открыть редактор» в боте (Mini App). Для локальных тестов без Telegram на сервере задайте ALLOW_INSECURE_EDIT=1.'
+        }
+        setSyncErr(msg)
+        setSavedAt(
+          new Date().toLocaleString('ru-RU', { timeStyle: 'short', dateStyle: 'short' }),
+        )
+      } finally {
+        setSaving(false)
+      }
+    },
+    [slug, displayName, bio, links, themeId, avatarRemoved, bgRemoved],
+  )
+
+  const previewProfile: Profile = useMemo(() => {
+    const nonempty = links.filter((l) => l.title.trim() || l.url.trim())
+    const filtered = filterLinksForPublic(nonempty)
+    const showAvatar =
+      !avatarRemoved &&
+      (Boolean(avatarBlobUrl) || Boolean(slugValid && serverMeta.hasAvatar))
+    const showBg =
+      !bgRemoved &&
+      (Boolean(bgBlobUrl) || Boolean(slugValid && serverMeta.hasBackground))
+    let backgroundKind: 'image' | 'video' | undefined
+    if (bgBlobUrl && bgKind) backgroundKind = bgKind
+    else if (slugValid && serverMeta.hasBackground && !bgRemoved)
+      backgroundKind = serverMeta.backgroundKind === 'video' ? 'video' : 'image'
+
+    return {
+      slug: slugValid ? slugOk : 'preview',
       displayName: displayName.trim(),
       bio: bio.trim(),
-      links: links.filter((l) => l.title.trim() || l.url.trim()),
+      links: filtered,
+      themeId,
+      updatedAt: slugValid ? serverMeta.updatedAt : undefined,
+      hasAvatar: showAvatar,
+      hasBackground: showBg,
+      backgroundKind,
     }
-    saveProfile(profile)
+  }, [
+    links,
+    avatarRemoved,
+    avatarBlobUrl,
+    slugValid,
+    slugOk,
+    serverMeta.hasAvatar,
+    serverMeta.hasBackground,
+    serverMeta.backgroundKind,
+    serverMeta.updatedAt,
+    bgRemoved,
+    bgBlobUrl,
+    bgKind,
+    displayName,
+    bio,
+    themeId,
+  ])
 
-    setSaving(true)
-    try {
-      await savePublicProfile(s, {
-        displayName: profile.displayName,
-        bio: profile.bio,
-        links: profile.links,
-      })
-      const avBlob = await loadAvatarBlob()
-      if (avBlob) {
-        await uploadAvatarToServer(s, avBlob)
-      } else if (avatarRemoved) {
-        await deleteAvatarOnServer(s).catch(() => {})
-      }
-      const bgBlob = await loadBackgroundBlob()
-      if (bgBlob) {
-        await uploadBackgroundToServer(s, bgBlob)
-      } else if (bgRemoved) {
-        await deleteBackgroundOnServer(s).catch(() => {})
-      }
-      const fresh = await fetchPublicProfile(s).catch(() => null)
-      if (fresh) {
-        setServerMeta({
-          updatedAt: fresh.updatedAt,
-          hasAvatar: fresh.hasAvatar,
-          hasBackground: fresh.hasBackground,
-          backgroundKind: fresh.backgroundKind,
-        })
-      }
-      setAvatarRemoved(false)
-      setBgRemoved(false)
-      setSyncOk('Профиль на сервере — ссылка открывается у всех в браузере.')
-      setSavedAt(
-        new Date().toLocaleString('ru-RU', { timeStyle: 'short', dateStyle: 'short' }),
-      )
-    } catch (e) {
-      let msg = e instanceof Error ? e.message : String(e)
-      if (msg.includes('telegram_auth_required') || msg.includes('401')) {
-        msg =
-          'Нужна авторизация Telegram: откройте редактор кнопкой «Открыть редактор» в боте (Mini App). Для локальных тестов без Telegram на сервере задайте ALLOW_INSECURE_EDIT=1.'
-      }
-      setSyncErr(msg)
-      setSavedAt(
-        new Date().toLocaleString('ru-RU', { timeStyle: 'short', dateStyle: 'short' }),
-      )
-    } finally {
-      setSaving(false)
-    }
-  }, [slug, displayName, bio, links, avatarRemoved, bgRemoved])
+  const confirmClaimAndSave = () => {
+    if (!claimSlug) return
+    sessionStorage.setItem(claimStorageKey(claimSlug), '1')
+    setClaimSlug(null)
+    void runSave({ skipClaim: true })
+  }
 
   return (
     <div className="edit">
@@ -298,13 +416,13 @@ export default function EditPage() {
               Просмотр
             </a>
           ) : null}
-          <button type="button" className="edit__saveBtn" onClick={() => void onSave()} disabled={saving}>
+          <button type="button" className="edit__saveBtn" onClick={() => void runSave()} disabled={saving}>
             {saving ? 'Сохранение…' : 'Сохранить'}
           </button>
         </div>
       </header>
 
-      <main className="edit__main">
+      <main className="edit__main edit__main--wide">
         <div className="edit__hero">
           <p className="edit__badge">Профиль</p>
           <h1 className="edit__title">Настройка страницы</h1>
@@ -325,6 +443,38 @@ export default function EditPage() {
         {syncErr ? <p className="edit__warn">Сервер: {syncErr}</p> : null}
         {savedAt ? <p className="edit__toast">Локально обновлено: {savedAt}</p> : null}
         {slugError ? <p className="edit__err">{slugError}</p> : null}
+
+        <section className="edit__panel">
+          <h2 className="edit__h2">Предпросмотр</h2>
+          <p className="edit__panelHint">
+            То, что видят гости: скрытые ссылки и вне расписания не показываются.
+          </p>
+          <div className="edit__previewShell">
+            <ProfileCard
+              profile={previewProfile}
+              localAvatarUrl={avatarBlobUrl}
+              localBgUrl={bgBlobUrl}
+              localBgKind={bgKind}
+              showGlowFallback={!previewProfile.hasBackground}
+            />
+          </div>
+        </section>
+
+        <section className="edit__panel">
+          <h2 className="edit__h2">Тема карточки</h2>
+          <div className="edit__themeGrid">
+            {THEME_IDS.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className={`edit__themeChip${themeId === id ? ' edit__themeChip--active' : ''}`}
+                onClick={() => setThemeId(id)}
+              >
+                {THEME_LABELS[id]}
+              </button>
+            ))}
+          </div>
+        </section>
 
         <section className="edit__panel">
           <h2 className="edit__h2">Внешний вид</h2>
@@ -465,55 +615,240 @@ export default function EditPage() {
               + Добавить
             </button>
           </div>
+          <p className="edit__panelHint">
+            Перетаскивайте за ⋮⋮. «Скрыть» убирает кнопку с публичной страницы без удаления.
+          </p>
 
           <ul className="edit__linkList">
             {links.map((row) => (
-              <li key={row.id} className="edit__linkRow">
-                <input
-                  className="edit__input"
-                  placeholder="Подпись кнопки"
-                  value={row.title}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    setLinks((prev) => prev.map((x) => (x.id === row.id ? { ...x, title: v } : x)))
-                  }}
-                />
-                <input
-                  className="edit__input"
-                  placeholder="https://…"
-                  value={row.url}
-                  onChange={(e) => {
-                    const v = e.target.value
-                    setLinks((prev) => prev.map((x) => (x.id === row.id ? { ...x, url: v } : x)))
-                  }}
-                />
-                <button
-                  type="button"
-                  className="edit__iconBtn"
-                  aria-label="Удалить ссылку"
-                  onClick={() =>
-                    setLinks((prev) => (prev.length <= 1 ? prev : prev.filter((x) => x.id !== row.id)))
-                  }
-                  disabled={links.length <= 1}
-                >
-                  ×
-                </button>
+              <li
+                key={row.id}
+                className="edit__linkBlock"
+                onDragOver={(e) => {
+                  e.preventDefault()
+                  e.dataTransfer.dropEffect = 'move'
+                }}
+                onDrop={(e) => {
+                  e.preventDefault()
+                  const from = e.dataTransfer.getData('text/plain') || dragLinkId.current
+                  dragLinkId.current = null
+                  if (!from || from === row.id) return
+                  setLinks((prev) => reorderLinks(prev, from, row.id))
+                }}
+              >
+                <div className="edit__linkRowTop">
+                  <span
+                    className="edit__drag"
+                    draggable
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Перетащить"
+                    onDragStart={(e) => {
+                      dragLinkId.current = row.id
+                      e.dataTransfer.setData('text/plain', row.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                    }}
+                    onDragEnd={() => {
+                      dragLinkId.current = null
+                    }}
+                  >
+                    ⋮⋮
+                  </span>
+                  <input
+                    className="edit__input edit__input--inRow"
+                    placeholder="Подпись кнопки"
+                    value={row.title}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setLinks((prev) => prev.map((x) => (x.id === row.id ? { ...x, title: v } : x)))
+                    }}
+                  />
+                  <input
+                    className="edit__input edit__input--inRow"
+                    placeholder="https://…"
+                    value={row.url}
+                    onChange={(e) => {
+                      const v = e.target.value
+                      setLinks((prev) => prev.map((x) => (x.id === row.id ? { ...x, url: v } : x)))
+                    }}
+                  />
+                  <label className="edit__hideLbl">
+                    <input
+                      type="checkbox"
+                      checked={Boolean(row.hidden)}
+                      onChange={(e) =>
+                        setLinks((prev) =>
+                          prev.map((x) => (x.id === row.id ? { ...x, hidden: e.target.checked } : x)),
+                        )
+                      }
+                    />
+                    скрыть
+                  </label>
+                  <button
+                    type="button"
+                    className="edit__iconBtn"
+                    aria-label="Удалить ссылку"
+                    onClick={() =>
+                      setLinks((prev) => (prev.length <= 1 ? prev : prev.filter((x) => x.id !== row.id)))
+                    }
+                    disabled={links.length <= 1}
+                  >
+                    ×
+                  </button>
+                </div>
+                <div className="edit__linkSchedule">
+                  <label className="edit__scheduleLbl">
+                    Показывать с
+                    <input
+                      type="datetime-local"
+                      className="edit__scheduleInput"
+                      value={isoToDatetimeLocalValue(row.visibleFrom)}
+                      onChange={(e) =>
+                        setLinks((prev) =>
+                          prev.map((x) =>
+                            x.id === row.id ? { ...x, visibleFrom: datetimeLocalToStored(e.target.value) } : x,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                  <label className="edit__scheduleLbl">
+                    до
+                    <input
+                      type="datetime-local"
+                      className="edit__scheduleInput"
+                      value={isoToDatetimeLocalValue(row.visibleUntil)}
+                      onChange={(e) =>
+                        setLinks((prev) =>
+                          prev.map((x) =>
+                            x.id === row.id
+                              ? { ...x, visibleUntil: datetimeLocalToStored(e.target.value) }
+                              : x,
+                          ),
+                        )
+                      }
+                    />
+                  </label>
+                </div>
               </li>
             ))}
           </ul>
 
           {publicUrl ? (
-            <p className="edit__public">
-              Публичная ссылка:{' '}
-              <a href={publicUrl} className="edit__publicLink">
-                {publicUrl}
-              </a>
-            </p>
+            <div className="edit__shareBlock">
+              <p className="edit__public">
+                Публичная ссылка:{' '}
+                <a href={publicUrl} className="edit__publicLink">
+                  {publicUrl}
+                </a>
+              </p>
+              {shortRefUrl ? (
+                <p className="edit__public edit__public--muted">
+                  Короткая ссылка:{' '}
+                  <a href={shortRefUrl} className="edit__publicLink">
+                    {shortRefUrl}
+                  </a>
+                </p>
+              ) : null}
+              <div className="edit__qrRow">
+                <div className="edit__qrBox">
+                  <QRCode value={publicUrl} size={128} fgColor="#111827" bgColor="#ffffff" />
+                </div>
+                <div className="edit__qrHint">
+                  <p className="edit__qrTitle">QR на вашу страницу</p>
+                  {shareTelegramUrl ? (
+                    <a className="edit__pill edit__pill--accent" href={shareTelegramUrl} target="_blank" rel="noreferrer">
+                      Открыть шаринг в Telegram
+                    </a>
+                  ) : null}
+                </div>
+              </div>
+            </div>
           ) : (
-            <p className="edit__hint">Укажите корректный адрес (slug), чтобы появилась ссылка.</p>
+            <p className="edit__hint">Укажите корректный адрес (slug), чтобы появилась ссылка и QR.</p>
           )}
         </section>
+
+        <section className="edit__panel edit__panel--danger">
+          <h2 className="edit__h2">Данные</h2>
+          <p className="edit__panelHint">
+            Экспорт JSON и удаление аккаунта доступны после сохранения профиля на сервер с тем же
+            slug (авторизация Telegram или ALLOW_INSECURE_EDIT).
+          </p>
+          <div className="edit__dangerRow">
+            <button
+              type="button"
+              className="edit__pill"
+              disabled={!slugValid}
+              onClick={() => {
+                if (!slugValid) return
+                void exportProfileJson(slugOk).catch((e) =>
+                  setSyncErr(e instanceof Error ? e.message : String(e)),
+                )
+              }}
+            >
+              Экспорт JSON
+            </button>
+            <button
+              type="button"
+              className="edit__pill edit__pill--danger"
+              disabled={!slugValid || saving}
+              onClick={() => {
+                if (!slugValid) return
+                if (
+                  !window.confirm(
+                    'Удалить аккаунт и все данные профиля на сервере без восстановления?',
+                  )
+                )
+                  return
+                void (async () => {
+                  try {
+                    await deleteAccountOnServer(slugOk)
+                    await clearAllLocalProfile()
+                    navigate('/')
+                  } catch (e) {
+                    setSyncErr(e instanceof Error ? e.message : String(e))
+                  }
+                })()
+              }}
+            >
+              Удалить аккаунт
+            </button>
+          </div>
+        </section>
       </main>
+
+      {claimSlug ? (
+        <div className="edit__modalOverlay" role="presentation" onClick={() => setClaimSlug(null)}>
+          <div
+            className="edit__modal"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="claim-title"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h2 id="claim-title" className="edit__modalTitle">
+              Закрепить адрес страницы?
+            </h2>
+            <p className="edit__modalText">
+              Адрес{' '}
+              <strong>
+                {window.location.origin}/{claimSlug}
+              </strong>{' '}
+              пока свободен. После сохранения страница будет опубликована и привязана к вашему
+              аккаунту в Telegram (или к режиму редактирования без Telegram при ALLOW_INSECURE_EDIT).
+            </p>
+            <div className="edit__modalActions">
+              <button type="button" className="edit__pill" onClick={() => setClaimSlug(null)}>
+                Отмена
+              </button>
+              <button type="button" className="edit__saveBtn edit__saveBtn--modal" onClick={confirmClaimAndSave}>
+                Опубликовать
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

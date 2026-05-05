@@ -1,4 +1,5 @@
-import type { Profile } from '../types/profile'
+import type { Profile, ProfileLink, ThemeId } from '../types/profile'
+import { normalizeThemeId } from './themes'
 import { RESERVED_SLUGS } from './reservedSlugs'
 
 const PROFILE_KEY = 'taplink_profile_v1'
@@ -26,19 +27,26 @@ export function loadProfile(): Profile | null {
     const data = JSON.parse(raw) as Profile
     if (!data || typeof data.slug !== 'string') return null
     if (!isValidSlug(data.slug)) return null
+    const linksRaw: unknown[] = Array.isArray(data.links) ? (data.links as unknown[]) : []
+    const links: ProfileLink[] = linksRaw
+      .filter((x): x is Record<string, unknown> => !!x && typeof x === 'object')
+      .filter((l) => typeof l.id === 'string')
+      .map((l) => ({
+        id: String(l.id).slice(0, 40),
+        title: String(l.title ?? '').slice(0, 60),
+        url: String(l.url ?? '').slice(0, 2000),
+        hidden: l.hidden === true,
+        visibleFrom:
+          typeof l.visibleFrom === 'string' ? l.visibleFrom.slice(0, 40) : undefined,
+        visibleUntil:
+          typeof l.visibleUntil === 'string' ? l.visibleUntil.slice(0, 40) : undefined,
+      }))
     return {
       slug: data.slug.trim().toLowerCase(),
       displayName: String(data.displayName ?? '').slice(0, 80),
       bio: String(data.bio ?? '').slice(0, 500),
-      links: Array.isArray(data.links)
-        ? data.links
-            .filter((l) => l && typeof l.id === 'string')
-            .map((l) => ({
-              id: String(l.id).slice(0, 40),
-              title: String(l.title ?? '').slice(0, 60),
-              url: String(l.url ?? '').slice(0, 2000),
-            }))
-        : [],
+      links,
+      themeId: normalizeThemeId(typeof data.themeId === 'string' ? data.themeId : undefined),
     }
   } catch {
     return null
@@ -46,18 +54,34 @@ export function loadProfile(): Profile | null {
 }
 
 export function saveProfile(profile: Profile): void {
+  const themeId: ThemeId = normalizeThemeId(profile.themeId)
   const normalized: Profile = {
     ...profile,
     slug: profile.slug.trim().toLowerCase(),
     displayName: profile.displayName.trim(),
     bio: profile.bio.trim(),
+    themeId,
     links: profile.links.map((l) => ({
       ...l,
       title: l.title.trim(),
       url: l.url.trim(),
+      hidden: l.hidden === true,
+      visibleFrom: l.visibleFrom?.trim() || undefined,
+      visibleUntil: l.visibleUntil?.trim() || undefined,
     })),
   }
   localStorage.setItem(PROFILE_KEY, JSON.stringify(normalized))
+}
+
+/** После удаления аккаунта на сервере — очистить черновик и медиа в браузере. */
+export async function clearAllLocalProfile(): Promise<void> {
+  try {
+    localStorage.removeItem(PROFILE_KEY)
+  } catch {
+    /* ignore */
+  }
+  await saveAvatarBlob(null).catch(() => {})
+  await saveBackgroundBlob(null).catch(() => {})
 }
 
 function openMediaDb(): Promise<IDBDatabase> {
