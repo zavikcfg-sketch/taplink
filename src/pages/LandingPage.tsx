@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import SiteNav from '../components/SiteNav'
 import { TelegramGlyph } from '../components/TelegramGlyph'
 import { loadProfile } from '../lib/profileStorage'
 import '../App.css'
@@ -26,6 +27,7 @@ export default function LandingPage() {
 
   return (
     <div className="home">
+      <SiteNav />
       <div className="home__glow home__glow--1" aria-hidden />
       <div className="home__glow home__glow--2" aria-hidden />
       <div className="home__glow home__glow--3" aria-hidden />

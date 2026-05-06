@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import SiteNav from '../components/SiteNav'
 import { loadProfile } from '../lib/profileStorage'
 import './CatalogPage.css'
 
@@ -8,6 +9,7 @@ export default function ProfileHubPage() {
 
   return (
     <div className="cat">
+      <SiteNav />
       <div className="cat__ambient" aria-hidden>
         <div className="cat__blob cat__blob--a" />
         <div className="cat__blob cat__blob--b" />
