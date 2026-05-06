@@ -4,11 +4,15 @@ import { BrowserRouter } from 'react-router-dom'
 import './index.css'
 import App from './App.tsx'
 
-class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: boolean }> {
-  state = { hasError: false }
+class RootErrorBoundary extends Component<
+  { children: ReactNode },
+  { hasError: boolean; message: string }
+> {
+  state = { hasError: false, message: '' }
 
-  static getDerivedStateFromError() {
-    return { hasError: true }
+  static getDerivedStateFromError(error: unknown) {
+    const msg = error instanceof Error ? error.message : String(error)
+    return { hasError: true, message: msg }
   }
 
   override componentDidCatch(error: unknown) {
@@ -29,8 +33,11 @@ class RootErrorBoundary extends Component<{ children: ReactNode }, { hasError: b
         >
           <div>
             <h1 style={{ margin: '0 0 10px', fontSize: '1.2rem' }}>Ошибка интерфейса</h1>
-            <p style={{ margin: 0, opacity: 0.8 }}>
+            <p style={{ margin: '0 0 8px', opacity: 0.8 }}>
               Обновите страницу. Если проблема повторяется — откройте <code>/</code>.
+            </p>
+            <p style={{ margin: 0, opacity: 0.8, fontSize: '0.9rem' }}>
+              Детали: <code>{this.state.message || 'unknown_error'}</code>
             </p>
           </div>
         </div>
