@@ -1,7 +1,13 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import ProfileCard from '../components/ProfileCard'
-import { fetchPublicProfile, publicOgImageUrl, recordLinkClick, reportPublicPage } from '../lib/api'
+import {
+  fetchPublicProfile,
+  publicBackgroundUrl,
+  publicOgImageUrl,
+  recordLinkClick,
+  reportPublicPage,
+} from '../lib/api'
 import { loadAvatarBlob, loadProfile } from '../lib/profileStorage'
 import type { Profile } from '../types/profile'
 import './PublicPage.css'
@@ -101,6 +107,19 @@ function PublicPageInner({ slug }: { slug: string }) {
     setOrCreateMeta('name', 'twitter:title', `${titleBase} — Taplink`)
     setOrCreateMeta('name', 'twitter:description', desc)
     setOrCreateMeta('name', 'twitter:image', ogImg)
+  }, [profile])
+
+  useEffect(() => {
+    if (!profile?.hasBackground || profile.backgroundKind !== 'video') return
+    const href = publicBackgroundUrl(profile.slug, profile.updatedAt)
+    const el = document.createElement('link')
+    el.rel = 'preload'
+    el.as = 'video'
+    el.href = href
+    document.head.appendChild(el)
+    return () => {
+      el.remove()
+    }
   }, [profile])
 
   const submitReport = async () => {

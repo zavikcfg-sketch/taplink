@@ -153,6 +153,19 @@
   font-weight: 700;
   letter-spacing: -0.03em;
   color: #fff;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pcard__vip {
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  font-weight: 800;
+  border-radius: 999px;
+  padding: 4px 8px;
+  background: linear-gradient(145deg, #f59e0b, #f97316);
+  color: #fff7ed;
 }
 
 .pcard--theme-light .pcard__name {

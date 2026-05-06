@@ -67,12 +67,16 @@ function applyProfile(
   setBio: (v: string) => void,
   setLinks: (v: ProfileLink[]) => void,
   setThemeId: (v: ThemeId) => void,
+  setBackgroundMuted: (v: boolean) => void,
+  setPlan: (v: 'free' | 'vip') => void,
 ) {
   setSlug(p.slug)
   setDisplayName(p.displayName)
   setBio(p.bio)
   setLinks(p.links.length ? p.links : [newLink()])
   setThemeId(normalizeThemeId(p.themeId))
+  setBackgroundMuted(p.backgroundMuted !== false)
+  setPlan(p.plan === 'vip' ? 'vip' : 'free')
 }
 
 type ServerMeta = {
@@ -91,6 +95,8 @@ export default function EditPage() {
   const [displayName, setDisplayName] = useState('')
   const [bio, setBio] = useState('')
   const [themeId, setThemeId] = useState<ThemeId>('purple')
+  const [backgroundMuted, setBackgroundMuted] = useState(true)
+  const [plan, setPlan] = useState<'free' | 'vip'>('free')
   const [links, setLinks] = useState<ProfileLink[]>([newLink()])
   const [serverMeta, setServerMeta] = useState<ServerMeta>({})
   const [avatarRemoved, setAvatarRemoved] = useState(false)
@@ -140,7 +146,16 @@ export default function EditPage() {
           remote = await fetchPublicProfile(local.slug).catch(() => null)
         }
         if (remote) {
-          applyProfile(remote, setSlug, setDisplayName, setBio, setLinks, setThemeId)
+          applyProfile(
+            remote,
+            setSlug,
+            setDisplayName,
+            setBio,
+            setLinks,
+            setThemeId,
+            setBackgroundMuted,
+            setPlan,
+          )
           setServerMeta({
             updatedAt: remote.updatedAt,
             hasAvatar: remote.hasAvatar,
@@ -148,10 +163,28 @@ export default function EditPage() {
             backgroundKind: remote.backgroundKind,
           })
         } else {
-          applyProfile(local, setSlug, setDisplayName, setBio, setLinks, setThemeId)
+          applyProfile(
+            local,
+            setSlug,
+            setDisplayName,
+            setBio,
+            setLinks,
+            setThemeId,
+            setBackgroundMuted,
+            setPlan,
+          )
         }
       } else if (local) {
-        applyProfile(local, setSlug, setDisplayName, setBio, setLinks, setThemeId)
+        applyProfile(
+          local,
+          setSlug,
+          setDisplayName,
+          setBio,
+          setLinks,
+          setThemeId,
+          setBackgroundMuted,
+          setPlan,
+        )
       }
       const blob = await loadAvatarBlob()
       if (cancelled) return
@@ -236,6 +269,25 @@ export default function EditPage() {
         displayName.trim() || slugOk,
       )}`
     : null
+  const linksLimit = plan === 'vip' ? 30 : 8
+  const canAddMoreLinks = links.length < linksLimit
+
+  useEffect(() => {
+    const s = slug.trim().toLowerCase()
+    if (!isValidSlug(s)) return
+    const t = window.setTimeout(() => {
+      saveProfile({
+        slug: s,
+        displayName: displayName.trim(),
+        bio: bio.trim(),
+        links,
+        themeId,
+        backgroundMuted,
+        plan,
+      })
+    }, 180)
+    return () => window.clearTimeout(t)
+  }, [slug, displayName, bio, links, themeId, backgroundMuted, plan])
 
   const persistBackgroundFile = async (file: File | null) => {
     if (!file) {
@@ -294,6 +346,8 @@ export default function EditPage() {
         bio: bio.trim(),
         links: links.filter((l) => l.title.trim() || l.url.trim()),
         themeId,
+        backgroundMuted,
+        plan,
       }
       saveProfile(profile)
 
@@ -304,6 +358,8 @@ export default function EditPage() {
           bio: profile.bio,
           links: profile.links,
           themeId,
+          backgroundMuted,
+          plan,
         })
         const avBlob = await loadAvatarBlob()
         if (avBlob) {
@@ -338,6 +394,12 @@ export default function EditPage() {
           msg =
             'Нужна авторизация Telegram: откройте редактор кнопкой «Открыть редактор» в боте (Mini App). Для локальных тестов без Telegram на сервере задайте ALLOW_INSECURE_EDIT=1.'
         }
+        if (msg.includes('free_plan_links_limit')) {
+          msg = 'Лимит Free-тарифа: максимум 8 ссылок. Переключитесь на VIP.'
+        }
+        if (msg.includes('vip_background_sound_required')) {
+          msg = 'Фоновое видео со звуком доступно только в VIP-тарифе.'
+        }
         setSyncErr(msg)
         setSavedAt(
           new Date().toLocaleString('ru-RU', { timeStyle: 'short', dateStyle: 'short' }),
@@ -346,7 +408,7 @@ export default function EditPage() {
         setSaving(false)
       }
     },
-    [slug, displayName, bio, links, themeId, avatarRemoved, bgRemoved],
+    [slug, displayName, bio, links, themeId, backgroundMuted, plan, avatarRemoved, bgRemoved],
   )
 
   const previewProfile: Profile = useMemo(() => {
@@ -369,6 +431,8 @@ export default function EditPage() {
       bio: bio.trim(),
       links: filtered,
       themeId,
+      backgroundMuted,
+      plan,
       updatedAt: slugValid ? serverMeta.updatedAt : undefined,
       hasAvatar: showAvatar,
       hasBackground: showBg,
@@ -390,6 +454,8 @@ export default function EditPage() {
     displayName,
     bio,
     themeId,
+    backgroundMuted,
+    plan,
   ])
 
   const confirmClaimAndSave = () => {
@@ -477,6 +543,34 @@ export default function EditPage() {
         </section>
 
         <section className="edit__panel">
+          <h2 className="edit__h2">Тариф</h2>
+          <div className="edit__themeGrid">
+            <button
+              type="button"
+              className={`edit__themeChip${plan === 'free' ? ' edit__themeChip--active' : ''}`}
+              onClick={() => {
+                setPlan('free')
+                setBackgroundMuted(true)
+              }}
+            >
+              Free
+            </button>
+            <button
+              type="button"
+              className={`edit__themeChip${plan === 'vip' ? ' edit__themeChip--active' : ''}`}
+              onClick={() => setPlan('vip')}
+            >
+              VIP
+            </button>
+          </div>
+          <ul className="edit__vipList">
+            <li>Free: до 8 ссылок, видеофон только без звука.</li>
+            <li>VIP: до 30 ссылок, видеофон со звуком, приоритет в каталоге.</li>
+            <li>VIP: бейдж на странице и будущая расширенная аналитика.</li>
+          </ul>
+        </section>
+
+        <section className="edit__panel">
           <h2 className="edit__h2">Внешний вид</h2>
           <p className="edit__panelHint">
             Фон страницы — фото или короткое видео (MP4, WebM до ~14 МБ). На публичной странице фон
@@ -488,10 +582,11 @@ export default function EditPage() {
               <video
                 className="edit__bgPreview"
                 src={bgPreview}
-                muted
+                muted={backgroundMuted}
                 loop
                 autoPlay
                 playsInline
+                preload="auto"
                 controls
               />
             ) : bgPreview ? (
@@ -529,6 +624,22 @@ export default function EditPage() {
               />
             </div>
           </div>
+          {bgKind === 'video' ? (
+            <label className="edit__toggle">
+              <input
+                type="checkbox"
+                checked={backgroundMuted}
+                onChange={(e) => {
+                  if (plan === 'free' && !e.target.checked) {
+                    setSyncErr('Фоновое видео со звуком доступно только в VIP.')
+                    return
+                  }
+                  setBackgroundMuted(e.target.checked)
+                }}
+              />
+              <span>Фоновое видео без звука (рекомендуется для автозапуска на телефонах)</span>
+            </label>
+          ) : null}
           <div className="edit__avatarRow">
             <div
               className="edit__avatar"
@@ -610,11 +721,15 @@ export default function EditPage() {
             <button
               type="button"
               className="edit__pill"
+              disabled={!canAddMoreLinks}
               onClick={() => setLinks((prev) => [...prev, newLink()])}
             >
               + Добавить
             </button>
           </div>
+          <p className="edit__panelHint">
+            Лимит текущего тарифа: {linksLimit} ссылок.
+          </p>
           <p className="edit__panelHint">
             Перетаскивайте за ⋮⋮. «Скрыть» убирает кнопку с публичной страницы без удаления.
           </p>

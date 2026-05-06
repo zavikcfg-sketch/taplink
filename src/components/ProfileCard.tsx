@@ -29,10 +29,12 @@ function CardBackground({
   slug,
   kind,
   cacheBust,
+  muted,
 }: {
   slug: string
   kind: 'image' | 'video'
   cacheBust?: string
+  muted: boolean
 }) {
   const src = publicBackgroundUrl(slug, cacheBust)
   const [failed, setFailed] = useState(false)
@@ -61,10 +63,11 @@ function CardBackground({
           className="pcard__bgMedia"
           src={src}
           autoPlay
-          muted
+          muted={muted}
           loop
           playsInline
-          preload="metadata"
+          preload="auto"
+          controls={!muted}
           onError={() => setFailed(true)}
         />
       ) : (
@@ -114,6 +117,7 @@ export default function ProfileCard({
 
   const useLocalBg = Boolean(localBgUrl && localBgKind)
   const useLocalAvatar = Boolean(localAvatarUrl)
+  const backgroundMuted = profile.backgroundMuted !== false
 
   return (
     <div
@@ -126,10 +130,12 @@ export default function ProfileCard({
             <video
               className="pcard__bgMedia"
               src={localBgUrl}
-              muted
+              muted={backgroundMuted}
               loop
               autoPlay
               playsInline
+              preload="auto"
+              controls={!backgroundMuted}
             />
           ) : (
             <img className="pcard__bgMedia" src={localBgUrl} alt="" />
@@ -137,7 +143,12 @@ export default function ProfileCard({
           <div className="pcard__bgScrim" />
         </div>
       ) : bgKind ? (
-        <CardBackground slug={profile.slug} kind={bgKind} cacheBust={profile.updatedAt} />
+        <CardBackground
+          slug={profile.slug}
+          kind={bgKind}
+          cacheBust={profile.updatedAt}
+          muted={backgroundMuted}
+        />
       ) : showGlowFallback ? (
         <div className="pcard__glow" aria-hidden />
       ) : null}
@@ -151,7 +162,10 @@ export default function ProfileCard({
           <div className="pcard__avatar pcard__avatar--ph" aria-hidden />
         )}
 
-        <h1 className="pcard__name">{profile.displayName || profile.slug}</h1>
+        <h1 className="pcard__name">
+          {profile.displayName || profile.slug}
+          {profile.plan === 'vip' ? <span className="pcard__vip">VIP</span> : null}
+        </h1>
         {profile.bio ? <p className="pcard__bio">{profile.bio}</p> : null}
 
         <ul className="pcard__links">

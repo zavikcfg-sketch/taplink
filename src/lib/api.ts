@@ -49,6 +49,8 @@ function parseProfile(data: unknown): Profile | null {
     bio: String(o.bio ?? ''),
     links,
     themeId: normalizeThemeId(typeof o.themeId === 'string' ? o.themeId : undefined),
+    backgroundMuted: typeof o.backgroundMuted === 'boolean' ? o.backgroundMuted : true,
+    plan: o.plan === 'vip' ? 'vip' : 'free',
     updatedAt: typeof o.updatedAt === 'string' ? o.updatedAt : undefined,
     hasAvatar: typeof o.hasAvatar === 'boolean' ? o.hasAvatar : undefined,
     hasBackground: typeof o.hasBackground === 'boolean' ? o.hasBackground : undefined,
@@ -82,7 +84,7 @@ export async function fetchEditorProfile(slug: string): Promise<Profile | null> 
 
 export async function savePublicProfile(
   slug: string,
-  body: Pick<Profile, 'displayName' | 'bio' | 'links' | 'themeId'>,
+  body: Pick<Profile, 'displayName' | 'bio' | 'links' | 'themeId' | 'backgroundMuted' | 'plan'>,
 ): Promise<Profile> {
   const r = await fetch(base(slug), {
     method: 'PUT',
@@ -95,6 +97,8 @@ export async function savePublicProfile(
       bio: body.bio,
       links: body.links,
       themeId: body.themeId ?? 'purple',
+      backgroundMuted: body.backgroundMuted ?? true,
+      plan: body.plan === 'vip' ? 'vip' : 'free',
     }),
   })
   if (!r.ok) {

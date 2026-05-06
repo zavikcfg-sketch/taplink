@@ -58,6 +58,7 @@ _DEFAULT_RESERVED = frozenset(
 )
 
 _ALLOWED_THEMES = frozenset({"purple", "ocean", "sunset", "mono", "light"})
+_ALLOWED_PLANS = frozenset({"free", "vip"})
 
 _METRICS = {"http_requests": 0, "http_errors": 0}
 
@@ -540,12 +541,17 @@ def ps_save_profile_json(
     now = datetime.now(timezone.utc).isoformat()
     theme_raw = str(payload.get("themeId") or payload.get("theme") or "purple").strip().lower()
     theme_id = theme_raw if theme_raw in _ALLOWED_THEMES else "purple"
+    plan_raw = str(payload.get("plan") or "free").strip().lower()
+    plan = plan_raw if plan_raw in _ALLOWED_PLANS else "free"
+    bg_muted = bool(payload.get("backgroundMuted", True))
     out: dict[str, Any] = {
         "slug": slug.lower(),
         "displayName": str(payload.get("displayName", ""))[:80],
         "bio": str(payload.get("bio", ""))[:500],
         "links": _ps_sanitize_links(payload.get("links")),
         "themeId": theme_id,
+        "backgroundMuted": bg_muted,
+        "plan": plan,
         "updatedAt": now,
     }
     if owner is not None:
@@ -734,6 +740,8 @@ class ProfileIn(BaseModel):
     bio: str = Field("", max_length=500)
     links: list[LinkIn] = Field(default_factory=list)
     themeId: str = Field("purple", max_length=24)
+    backgroundMuted: bool = True
+    plan: str = Field("free", max_length=12)
 
 
 class ClickIn(BaseModel):
@@ -980,6 +988,12 @@ def api_put_public(
         bad, reason = _url_blocked(link.url)
         if bad:
             raise HTTPException(status_code=400, detail=reason or "bad_url")
+    plan_raw = body.plan.strip().lower()
+    plan = plan_raw if plan_raw in _ALLOWED_PLANS else "free"
+    if plan == "free" and len(body.links) > 8:
+        raise HTTPException(status_code=402, detail="free_plan_links_limit")
+    if plan == "free" and body.backgroundMuted is False:
+        raise HTTPException(status_code=402, detail="vip_background_sound_required")
     claim = user_id if user_id >= 0 else None
     try:
         saved = ps_save_profile_json(
@@ -989,6 +1003,8 @@ def api_put_public(
                 "bio": body.bio,
                 "links": [link.model_dump() for link in body.links],
                 "themeId": body.themeId,
+                "backgroundMuted": body.backgroundMuted,
+                "plan": plan,
             },
             claim_owner_id=claim,
         )
@@ -1152,6 +1168,8 @@ def api_delete_avatar(
                 "bio": disk.get("bio", ""),
                 "links": disk.get("links", []),
                 "themeId": disk.get("themeId", "purple"),
+                "backgroundMuted": bool(disk.get("backgroundMuted", True)),
+                "plan": str(disk.get("plan", "free")),
             },
         )
     return {"ok": True}
@@ -1223,6 +1241,8 @@ def api_delete_background(
                 "bio": disk.get("bio", ""),
                 "links": disk.get("links", []),
                 "themeId": disk.get("themeId", "purple"),
+                "backgroundMuted": bool(disk.get("backgroundMuted", True)),
+                "plan": str(disk.get("plan", "free")),
             },
         )
     return {"ok": True}

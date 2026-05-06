@@ -16,6 +16,8 @@ export type Profile = {
   bio: string
   links: ProfileLink[]
   themeId?: ThemeId
+  backgroundMuted?: boolean
+  plan?: 'free' | 'vip'
   /** ISO с сервера */
   updatedAt?: string
   hasAvatar?: boolean

@@ -47,6 +47,8 @@ export function loadProfile(): Profile | null {
       bio: String(data.bio ?? '').slice(0, 500),
       links,
       themeId: normalizeThemeId(typeof data.themeId === 'string' ? data.themeId : undefined),
+      backgroundMuted: data.backgroundMuted !== false,
+      plan: data.plan === 'vip' ? 'vip' : 'free',
     }
   } catch {
     return null
@@ -61,6 +63,8 @@ export function saveProfile(profile: Profile): void {
     displayName: profile.displayName.trim(),
     bio: profile.bio.trim(),
     themeId,
+    backgroundMuted: profile.backgroundMuted !== false,
+    plan: profile.plan === 'vip' ? 'vip' : 'free',
     links: profile.links.map((l) => ({
       ...l,
       title: l.title.trim(),
