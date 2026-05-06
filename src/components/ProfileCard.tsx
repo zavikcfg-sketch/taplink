@@ -44,8 +44,15 @@ function CardBackground({
     const mq = window.matchMedia('(prefers-reduced-motion: reduce)')
     setReduceMotion(mq.matches)
     const fn = () => setReduceMotion(mq.matches)
-    mq.addEventListener('change', fn)
-    return () => mq.removeEventListener('change', fn)
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', fn)
+      return () => mq.removeEventListener('change', fn)
+    }
+    if (typeof mq.addListener === 'function') {
+      mq.addListener(fn)
+      return () => mq.removeListener(fn)
+    }
+    return () => {}
   }, [])
 
   if (failed || (reduceMotion && kind === 'video')) {
