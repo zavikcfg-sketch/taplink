@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import QRCode from 'react-qr-code'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import ProfileCard from '../components/ProfileCard'
 import type { Profile, ProfileLink, ThemeId } from '../types/profile'
 import {
@@ -91,6 +91,7 @@ const claimStorageKey = (slug: string) => `taplink_claim_${slug}`
 export default function EditPage() {
   const slugId = useId()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const [slug, setSlug] = useState('')
   const [displayName, setDisplayName] = useState('')
   const [bio, setBio] = useState('')
@@ -236,6 +237,15 @@ export default function EditPage() {
     }
     document.head.appendChild(s)
   }, [])
+
+  useEffect(() => {
+    const qpTheme = normalizeThemeId(searchParams.get('theme') || undefined)
+    if (qpTheme) setThemeId(qpTheme)
+    const qpPlan = (searchParams.get('plan') || '').toLowerCase()
+    if (qpPlan === 'vip' || qpPlan === 'free') {
+      setPlan(qpPlan)
+    }
+  }, [searchParams])
 
   const slugOk = slug.trim().toLowerCase()
   const slugValid = Boolean(slugOk && isValidSlug(slugOk))
@@ -498,9 +508,8 @@ export default function EditPage() {
           </p>
           {!isTelegramWebApp() ? (
             <p className="edit__warn edit__warn--inline">
-              Сохранение на сервер требует открыть эту страницу из Telegram (кнопка «Открыть редактор»
-              в боте). Иначе сервер вернёт ошибку авторизации — для отладки можно задать{' '}
-              <code className="edit__code">ALLOW_INSECURE_EDIT=1</code> на бэкенде.
+              Редактор работает как обычный веб-сайт. Если на сервере отключён веб-режим, включите{' '}
+              <code className="edit__code">ALLOW_INSECURE_EDIT=1</code> в окружении.
             </p>
           ) : null}
         </div>

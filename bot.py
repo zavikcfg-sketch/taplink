@@ -14,7 +14,7 @@ import logging
 import os
 import threading
 
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update, WebAppInfo
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import Application, CommandHandler, ContextTypes
 
 logging.basicConfig(
@@ -40,17 +40,16 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     args = context.args or []
     mode = (args[0] or "").strip().lower() if args else ""
 
-    edit_url = f"{public}/edit"
+    edit_url = f"{public}/1"
+    pricing_url = f"{public}/pricing"
+    profile_url = f"{public}/profil"
     site_url = public
 
     keyboard = InlineKeyboardMarkup(
         [
-            [
-                InlineKeyboardButton(
-                    text="Открыть редактор",
-                    web_app=WebAppInfo(url=edit_url),
-                )
-            ],
+            [InlineKeyboardButton(text="Открыть редактор", url=edit_url)],
+            [InlineKeyboardButton(text="Профиль и настройки", url=profile_url)],
+            [InlineKeyboardButton(text="Тарифы VIP", url=pricing_url)],
             [InlineKeyboardButton(text="Открыть сайт", url=site_url)],
         ]
     )
@@ -58,7 +57,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     if mode == "return":
         text = (
             "С возвращением!\n\n"
-            "Нажмите «Открыть редактор», чтобы изменить страницу, ссылки и аватар. "
+            "Нажмите «Открыть редактор», чтобы изменить страницу, ссылки и аватар в браузере. "
             "После «Сохранить» в редакторе ваша публичная ссылка обновится для всех.\n\n"
             "Сайт: " + site_url
         )
@@ -66,7 +65,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         # register, пустой start и любые другие deep-link
         text = (
             "Добро пожаловать в Taplink — регистрация в пару шагов.\n\n"
-            "1) Нажмите «Открыть редактор» (Mini App в Telegram).\n"
+            "1) Нажмите «Открыть редактор» (обычный сайт в браузере).\n"
             "2) Придумайте адрес страницы (латиницей), имя, описание и ссылки.\n"
             "3) Нажмите «Сохранить» — профиль уйдёт на сервер.\n"
             "4) Делитесь ссылкой вида:\n"
@@ -76,6 +75,33 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         )
 
     await update.effective_message.reply_text(text, reply_markup=keyboard)
+
+
+async def themes(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    public = _public_base()
+    if not public:
+        await update.effective_message.reply_text(
+            "Задайте переменную PUBLIC_URL на хостинге (https://…).",
+        )
+        return
+    base = f"{public}/1"
+    kb = InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton(text="Purple", url=f"{base}?theme=purple"),
+                InlineKeyboardButton(text="Ocean", url=f"{base}?theme=ocean"),
+            ],
+            [
+                InlineKeyboardButton(text="Sunset", url=f"{base}?theme=sunset"),
+                InlineKeyboardButton(text="Mono", url=f"{base}?theme=mono"),
+            ],
+            [InlineKeyboardButton(text="Light", url=f"{base}?theme=light")],
+        ]
+    )
+    await update.effective_message.reply_text(
+        "Выбери тему — откроется редактор с предустановкой.",
+        reply_markup=kb,
+    )
 
 
 def run_bot() -> None:
@@ -95,6 +121,7 @@ def run_bot() -> None:
 
     application = Application.builder().token(token).build()
     application.add_handler(CommandHandler("start", start))
+    application.add_handler(CommandHandler("themes", themes))
     log.info("Бот polling запущен (bot.py)")
     if worker:
         application.run_polling(

@@ -39,10 +39,13 @@ export default function LandingPage() {
         </Link>
         <div className="home__topActions">
           {hasProfile ? (
-            <Link className="home__topLink home__topLink--muted" to="/edit">
+            <Link className="home__topLink home__topLink--muted" to="/1">
               Редактор
             </Link>
           ) : null}
+          <Link className="home__topLink home__topLink--muted" to="/pricing">
+            Тарифы
+          </Link>
           {bot ? (
             <a className="home__topLink" href={linkRegister ?? '#'} target="_blank" rel="noreferrer">
               Вход в бота
@@ -63,8 +66,8 @@ export default function LandingPage() {
               </h1>
               <p className="home__lead">
                 Один аккуратный адрес в шапке профиля: аватар, текст, кнопки на стримы, магазин,
-                донаты — и <strong>свой фон</strong> (фото или короткое видео). Редактор в Telegram Mini
-                App, публикация в один тап.
+                донаты — и <strong>свой фон</strong> (фото или короткое видео). Редактор работает как
+                обычный сайт в браузере, публикация в один тап.
               </p>
 
               <p className="home__valueLine">
@@ -110,10 +113,13 @@ export default function LandingPage() {
                 ) : null}
 
                 {hasProfile ? (
-                  <Link className="home__btn home__btn--ghost" to="/edit">
+                  <Link className="home__btn home__btn--ghost" to="/1">
                     Открыть редактор
                   </Link>
                 ) : null}
+                <Link className="home__btn home__btn--ghost" to="/pricing">
+                  Смотреть тарифы
+                </Link>
               </div>
 
               {!bot ? (
@@ -156,7 +162,7 @@ export default function LandingPage() {
                 </span>
                 <div>
                   <strong>Через Telegram</strong>
-                  <span>Регистрация в боте, правки в Mini App, без отдельного пароля от сайта.</span>
+                  <span>Бот помогает стартовать, но редактор и сайт работают в обычном браузере.</span>
                 </div>
               </li>
             </ul>
@@ -173,7 +179,7 @@ export default function LandingPage() {
                 <span className="home__stepNum">2</span>
                 <div>
                   <strong>Оформление</strong>
-                  <span>Mini App: текст, ссылки, аватар и фон</span>
+                  <span>Веб-редактор: текст, ссылки, аватар и фон</span>
                 </div>
               </li>
               <li>

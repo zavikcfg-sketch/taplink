@@ -205,11 +205,13 @@ def _validate_webapp_init_data(init_data: str | None, bot_token: str) -> int | N
 
 
 def _allow_insecure_edit() -> bool:
-    return os.environ.get("ALLOW_INSECURE_EDIT", "").strip().lower() in (
-        "1",
-        "true",
-        "yes",
-    )
+    raw = os.environ.get("ALLOW_INSECURE_EDIT", "").strip().lower()
+    # По умолчанию разрешаем веб-редактор в браузере без Telegram Mini App.
+    if raw == "":
+        return True
+    if raw in ("0", "false", "no"):
+        return False
+    return raw in ("1", "true", "yes")
 
 
 def _require_write_telegram_user(x_telegram_init_data: str | None) -> int:

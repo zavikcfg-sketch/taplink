@@ -38,7 +38,7 @@ export default function CatalogPage() {
         <Link to="/" className="cat__brand">
           Taplink
         </Link>
-        <Link to="/edit" className="cat__ghost">
+        <Link to="/1" className="cat__ghost">
           Редактор
         </Link>
       </header>

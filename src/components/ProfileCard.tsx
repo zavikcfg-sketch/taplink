@@ -205,7 +205,7 @@ export default function ProfileCard({
                 Taplink
               </Link>
               <span className="pcard__dot">·</span>
-              <Link to="/edit" className="pcard__mini">
+            <Link to="/1" className="pcard__mini">
                 Изменить
               </Link>
             </div>
