@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import QRCode from 'react-qr-code'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
+import InternalLayout from '../components/InternalLayout'
 import ProfileCard from '../components/ProfileCard'
-import SiteNav from '../components/SiteNav'
 import type { Profile, ProfileLink, ThemeId } from '../types/profile'
 import {
   deleteAccountOnServer,
@@ -477,8 +477,8 @@ export default function EditPage() {
   }
 
   return (
-    <div className="edit">
-      <SiteNav />
+    <InternalLayout>
+      <div className="edit">
       <div className="edit__ambient" aria-hidden>
         <div className="edit__blob edit__blob--a" />
         <div className="edit__blob edit__blob--b" />
@@ -975,6 +975,7 @@ export default function EditPage() {
           </div>
         </div>
       ) : null}
-    </div>
+      </div>
+    </InternalLayout>
   )
 }

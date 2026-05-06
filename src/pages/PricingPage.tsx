@@ -1,24 +1,11 @@
-import { Link } from 'react-router-dom'
-import SiteNav from '../components/SiteNav'
+import InternalLayout from '../components/InternalLayout'
 import './CatalogPage.css'
 
 export default function PricingPage() {
   return (
-    <div className="cat">
-      <SiteNav />
-      <div className="cat__ambient" aria-hidden>
-        <div className="cat__blob cat__blob--a" />
-        <div className="cat__blob cat__blob--b" />
-      </div>
-      <header className="cat__bar">
-        <Link to="/" className="cat__brand">
-          Taplink
-        </Link>
-        <Link to="/1" className="cat__ghost">
-          Открыть редактор
-        </Link>
-      </header>
-      <main className="cat__main">
+    <InternalLayout>
+      <div className="cat">
+        <main className="cat__main cat__main--shell">
         <h1 className="cat__title">Тарифы</h1>
         <p className="cat__lead">Выберите тариф под вашу страницу и нагрузку.</p>
 
@@ -36,7 +23,8 @@ export default function PricingPage() {
             <span className="cat__slug">Свой домен, UTM-аналитика, A/B обложек, экспорт отчётов.</span>
           </li>
         </ul>
-      </main>
-    </div>
+        </main>
+      </div>
+    </InternalLayout>
   )
 }

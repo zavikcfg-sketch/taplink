@@ -77,6 +77,11 @@
   margin: 0 auto;
 }
 
+.cat__main--shell {
+  margin-top: 20px;
+  max-width: min(920px, 100%);
+}
+
 .cat__title {
   margin: 0 0 10px;
   font-size: clamp(1.45rem, 4vw, 1.85rem);
