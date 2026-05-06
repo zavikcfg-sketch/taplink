@@ -32,8 +32,19 @@ import { THEME_IDS, THEME_LABELS, normalizeThemeId } from '../lib/themes'
 import { isTelegramWebApp } from '../lib/telegramInit'
 import './EditPage.css'
 
+function safeId(): string {
+  const c = globalThis.crypto as Crypto | undefined
+  if (c?.randomUUID) return c.randomUUID()
+  if (c?.getRandomValues) {
+    const a = new Uint32Array(4)
+    c.getRandomValues(a)
+    return `l-${a[0].toString(16)}${a[1].toString(16)}${a[2].toString(16)}${a[3].toString(16)}`
+  }
+  return `l-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`
+}
+
 function newLink(): ProfileLink {
-  return { id: crypto.randomUUID(), title: '', url: '', hidden: false }
+  return { id: safeId(), title: '', url: '', hidden: false }
 }
 
 function isoToDatetimeLocalValue(raw: string | undefined): string {
@@ -222,6 +233,7 @@ export default function EditPage() {
   }, [])
 
   useEffect(() => {
+    if (!isTelegramWebApp()) return
     if (document.querySelector('script[data-tg-web-app]')) return
     const s = document.createElement('script')
     s.src = 'https://telegram.org/js/telegram-web-app.js'
